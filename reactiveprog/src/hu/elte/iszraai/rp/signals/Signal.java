@@ -1,7 +1,5 @@
 package hu.elte.iszraai.rp.signals;
 
-import java.util.LinkedList;
-import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -16,8 +14,6 @@ public class Signal<T> {
     protected T                lastValue;
     protected Runnable         action;
     protected ValueProvider<T> valueProvider;
-
-    protected List<Signal<?>>  subscribedSignals = new LinkedList<>();
 
     public Signal() {
         this(null);
@@ -37,11 +33,6 @@ public class Signal<T> {
         if (action != null) {
             action.run();
         }
-        if (!subscribedSignals.isEmpty()) {
-            for (Signal<?> signal : subscribedSignals) {
-                signal.changeValue();
-            }
-        }
     }
 
     protected void changeValue() {
@@ -60,14 +51,38 @@ public class Signal<T> {
 
     public Signal<T> map(final Function<? super T, ? extends T> mapper) {
         Signal<T> mappedSignal = new Signal<>(() -> mapper.apply(lastValue), null);
-        subscribedSignals.add(mappedSignal);
+        if (action != null) {
+            Runnable newAction = () -> {
+                action.run();
+                mappedSignal.changeValue();
+            };
+            action = newAction;
+        } else {
+            action = () -> mappedSignal.changeValue();
+        }
         return mappedSignal;
     }
 
     public <U, R> Signal<R> join(final Signal<U> other, final BiFunction<? super T, ? super U, ? extends R> joiner) {
         Signal<R> joinedSignal = new Signal<>(() -> joiner.apply(this.lastValue, other.lastValue), null);
-        this.subscribedSignals.add(joinedSignal);
-        other.subscribedSignals.add(joinedSignal);
+        if (action != null) {
+            Runnable newAction = () -> {
+                action.run();
+                joinedSignal.changeValue();
+            };
+            action = newAction;
+        } else {
+            action = () -> joinedSignal.changeValue();
+        }
+        if (other.action != null) {
+            Runnable newAction = () -> {
+                other.action.run();
+                joinedSignal.changeValue();
+            };
+            other.action = newAction;
+        } else {
+            other.action = () -> joinedSignal.changeValue();
+        }
         return joinedSignal;
     }
 
@@ -76,7 +91,15 @@ public class Signal<T> {
         Signal<R> accumulatedSignal = new Signal<>();
         accumulatedSignal.lastValue = startValue;
         accumulatedSignal.valueProvider = () -> accumulator.apply(accumulatedSignal.lastValue, this.lastValue);
-        subscribedSignals.add(accumulatedSignal);
+        if (action != null) {
+            Runnable newAction = () -> {
+                action.run();
+                accumulatedSignal.changeValue();
+            };
+            action = newAction;
+        } else {
+            action = () -> accumulatedSignal.changeValue();
+        }
         return accumulatedSignal;
     }
 

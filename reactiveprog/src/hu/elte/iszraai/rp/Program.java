@@ -4,7 +4,6 @@ import java.io.BufferedOutputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
-import java.util.Scanner;
 
 import hu.elte.iszraai.rp.signals.Signal;
 import hu.elte.iszraai.rp.signals.SignalConstant;
@@ -20,16 +19,7 @@ public class Program {
         System.setOut(outputStream);
         System.setErr(outputStream);
 
-        // Signal that changes value each time the user inputs a new line to the console
-        Signal<String> consoleLastLineChangeSignal = new Signal<>();
-
-        new Thread(() -> {
-            try (Scanner scanner = new Scanner(System.in)) {
-                while (scanner.hasNext()) {
-                    consoleLastLineChangeSignal.changeValue(scanner.nextLine());
-                }
-            }
-        }).start();
+        ConsoleLastLineChangeSignal consoleLastLineChangeSignal = new ConsoleLastLineChangeSignal();
 
         // Signal that changes value every second
         Signal<SignalConstant> timedSignal = TimedSignal.every(1, TimeUnit.SECOND);
