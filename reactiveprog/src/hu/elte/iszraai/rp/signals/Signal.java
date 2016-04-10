@@ -6,9 +6,7 @@ import java.util.function.Function;
 public class Signal<T> {
 
     public static <T> Signal<T> createConstantSignal(final T constant) {
-        Signal<T> signal = new Signal<>();
-        signal.lastValue = constant;
-        return signal;
+        return new Signal<>(constant);
     }
 
     protected T                lastValue;
@@ -16,11 +14,14 @@ public class Signal<T> {
     protected ValueProvider<T> valueProvider;
 
     public Signal() {
-        this(null);
     }
 
     public Signal(final Runnable action) {
         this(null, action);
+    }
+
+    protected Signal(final T value) {
+        this.lastValue = value;
     }
 
     protected Signal(final ValueProvider<T> valueProvider, final Runnable action) {
@@ -49,57 +50,41 @@ public class Signal<T> {
         this.action = action;
     }
 
+    protected Runnable wrapAction(final Runnable actionToWrap, final Signal<?> signalToCall) {
+        if (actionToWrap != null) {
+            return () -> {
+                actionToWrap.run();
+                signalToCall.changeValue();
+            };
+        } else {
+            return () -> signalToCall.changeValue();
+        }
+    }
+
     public Signal<T> map(final Function<? super T, ? extends T> mapper) {
         Signal<T> mappedSignal = new Signal<>(() -> mapper.apply(lastValue), null);
-        if (action != null) {
-            Runnable newAction = () -> {
-                action.run();
-                mappedSignal.changeValue();
-            };
-            action = newAction;
-        } else {
-            action = () -> mappedSignal.changeValue();
-        }
+
+        action = wrapAction(action, mappedSignal);
+
         return mappedSignal;
     }
 
     public <U, R> Signal<R> join(final Signal<U> other, final BiFunction<? super T, ? super U, ? extends R> joiner) {
         Signal<R> joinedSignal = new Signal<>(() -> joiner.apply(this.lastValue, other.lastValue), null);
-        if (action != null) {
-            Runnable newAction = () -> {
-                action.run();
-                joinedSignal.changeValue();
-            };
-            action = newAction;
-        } else {
-            action = () -> joinedSignal.changeValue();
-        }
-        if (other.action != null) {
-            Runnable newAction = () -> {
-                other.action.run();
-                joinedSignal.changeValue();
-            };
-            other.action = newAction;
-        } else {
-            other.action = () -> joinedSignal.changeValue();
-        }
+
+        action = wrapAction(action, joinedSignal);
+        other.action = wrapAction(other.action, joinedSignal);
+
         return joinedSignal;
     }
 
     public <R> Signal<R> accumulate(final BiFunction<? super R, ? super T, ? extends R> accumulator,
             final R startValue) {
-        Signal<R> accumulatedSignal = new Signal<>();
-        accumulatedSignal.lastValue = startValue;
+        Signal<R> accumulatedSignal = new Signal<>(startValue);
         accumulatedSignal.valueProvider = () -> accumulator.apply(accumulatedSignal.lastValue, this.lastValue);
-        if (action != null) {
-            Runnable newAction = () -> {
-                action.run();
-                accumulatedSignal.changeValue();
-            };
-            action = newAction;
-        } else {
-            action = () -> accumulatedSignal.changeValue();
-        }
+
+        action = wrapAction(action, accumulatedSignal);
+
         return accumulatedSignal;
     }
 
